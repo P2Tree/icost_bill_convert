@@ -1,10 +1,17 @@
-// 导入所需的库和模块
-use csv::{ReaderBuilder, WriterBuilder};
-use encoding_rs::GBK;
-use encoding_rs_io::DecodeReaderBytesBuilder;
+use clap::{self, Parser};
 use serde::Serialize;
 use std::env;
 use std::error::Error;
+use std::path::{Path, PathBuf};
+
+mod arguments;
+use arguments::{Args, Source};
+
+mod zhifubao;
+use zhifubao::read_input_file as zhifubao_read;
+use zhifubao::write_output_file as zhifubao_write;
+
+type DynResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
 // 定义输出记录的结构体，使用 Serialize 特征以支持 CSV 序列化
 #[derive(Serialize)]
@@ -19,80 +26,6 @@ struct OutputRecord {
     remark: String,    // 备注
     currency: String,  // 货币类型
     tag: String,       // 标签
-}
-
-// 读取输入文件并处理数据
-fn read_input_file(input_file: &str) -> Result<Vec<OutputRecord>, Box<dyn Error>> {
-    // 打开文件
-    let file = std::fs::File::open(input_file)?;
-    let decoder = DecodeReaderBytesBuilder::new()
-        .encoding(Some(GBK))
-        .build(file);
-
-    // 创建更灵活的 CSV 读取器配置
-    let mut rdr = ReaderBuilder::new()
-        .has_headers(true)
-        .flexible(true) // 允许不同的字段数
-        .trim(csv::Trim::All) // 修剪所有字段的空白
-        .from_reader(decoder);
-
-    let mut records = Vec::new();
-    let mut headers_found = false;
-
-    for result in rdr.records() {
-        let record = result?;
-
-        if !headers_found {
-            if record.get(0).map_or(false, |s| s.contains("交易时间")) {
-                headers_found = true;
-                continue; // 跳过标题行
-            } else {
-                continue; // 继续查找标题行
-            }
-        }
-
-        let transaction_time = record.get(0).unwrap_or("").to_string();
-        let transaction_type = record.get(1).unwrap_or("").to_string();
-        let remark = record.get(4).unwrap_or("").to_string();
-        let amount = record.get(6).unwrap_or("").to_string();
-        let payment_method = record.get(7).unwrap_or("").to_string();
-
-        if transaction_type == "不计收支" {
-            continue;
-        }
-
-        // 格式化日期
-        let formatted_date = format_date(&transaction_time);
-
-        let output_record = OutputRecord {
-            date: formatted_date,
-            r#type: transaction_type,
-            amount,
-            category1: String::new(), // 暂时留空
-            category2: String::new(), // 暂时留空
-            account1: payment_method,
-            account2: String::new(), // 暂时留空
-            remark,
-            currency: "CNY".to_string(), // 默认值
-            tag: String::new(),          // 暂时留空
-        };
-
-        records.push(output_record);
-    }
-
-    Ok(records)
-}
-
-// 将处理后的记录写入输出文件
-fn write_output_file(output_file: &str, records: &[OutputRecord]) -> Result<(), Box<dyn Error>> {
-    let mut wtr = WriterBuilder::new().from_path(output_file)?;
-
-    for record in records {
-        wtr.serialize(record)?;
-    }
-
-    wtr.flush()?;
-    Ok(())
 }
 
 // 格式化日期字符串
@@ -124,22 +57,21 @@ fn format_date(input: &str) -> String {
 // 主函数：处理命令行参数并协调整个程序的执行流程
 fn main() -> Result<(), Box<dyn Error>> {
     // 获取命令行参数
-    let args: Vec<String> = env::args().collect();
-
-    // 检查参数数量是否正确
-    if args.len() != 2 {
-        eprintln!("Usage: {} <input_file>", args[0]);
-        std::process::exit(1);
-    }
+    let args = Args::parse();
 
     // 设置输入和输出文件路径
-    let input_file = &args[1];
-    let output_file = input_file; // 输出文件与输入文件相同
+    let input_file = &args.input;
+    let output_file = match &args.output {
+        Some(output_file) => output_file,
+        None => &args.input,
+    };
 
-    // 读取并处理输入文件
-    let records = read_input_file(input_file)?;
-    // 写入处理后的数据到输出文件
-    write_output_file(output_file, &records)?;
+    if args.source == Source::ZhiFuBao {
+        let records = zhifubao_read(input_file).expect("read input csv file error");
+        zhifubao_write(output_file, &records).expect("write to new csv file error");
+    } else if args.source == Source::WeiXin {
+        // write_output_file();
+    }
 
     Ok(())
 }
