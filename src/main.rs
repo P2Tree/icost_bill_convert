@@ -11,10 +11,14 @@ mod zhifubao;
 use zhifubao::read_input_file as zhifubao_read;
 use zhifubao::write_output_file as zhifubao_write;
 
+mod weixin;
+use weixin::read_input_file as weixin_read;
+use weixin::write_output_file as weixin_write;
+
 type DynResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
 // 定义输出记录的结构体，使用 Serialize 特征以支持 CSV 序列化
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 struct OutputRecord {
     date: String,      // 日期
     r#type: String,    // 交易类型
@@ -70,7 +74,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         let records = zhifubao_read(input_file).expect("read input csv file error");
         zhifubao_write(output_file, &records).expect("write to new csv file error");
     } else if args.source == Source::WeiXin {
-        // write_output_file();
+        let records = weixin_read(input_file).expect("read input csv file error");
+        weixin_write(output_file, &records).expect("write to new csv file error");
     }
 
     Ok(())

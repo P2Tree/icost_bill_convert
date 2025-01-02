@@ -1,6 +1,6 @@
 use std::path::Path;
 use encoding_rs_io::DecodeReaderBytesBuilder;
-use encoding_rs::GBK;
+use encoding_rs::{GBK, UTF_8};
 use csv::{ReaderBuilder, WriterBuilder};
 
 use crate::{OutputRecord, DynResult, format_date};
@@ -10,7 +10,7 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
     // 打开文件
     let file = std::fs::File::open(input_file)?;
     let decoder = DecodeReaderBytesBuilder::new()
-        .encoding(Some(GBK))
+        .encoding(Some(UTF_8))
         .build(file);
 
     // 创建更灵活的 CSV 读取器配置
@@ -27,7 +27,9 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
         let record = result?;
 
         if !headers_found {
+            println!("{:?}", record);
             if record.get(0).map_or(false, |s| s.contains("交易时间")) {
+                println!("get header");
                 headers_found = true;
                 continue; // 跳过标题行
             } else {
@@ -37,14 +39,14 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
 
         let transaction_time = record.get(0).unwrap_or("").to_string();
         let transaction_type = record.get(1).unwrap_or("").to_string();
-        let remark = record.get(4).unwrap_or("").to_string();
-        let amount = record.get(6).unwrap_or("").to_string();
-        let payment_method = record.get(7).unwrap_or("").to_string();
+        let remark = record.get(3).unwrap_or("").to_string();
+        let amount = record.get(5).unwrap_or("").to_string();
+        let payment_method = record.get(6).unwrap_or("").to_string();
 
         // 跳过不关心的交易类型
-        if transaction_type == "不计收支" {
-            continue;
-        }
+        // if transaction_type == "不计收支" {
+        //     continue;
+        // }
 
         // 格式化日期
         let formatted_date = format_date(&transaction_time);
@@ -65,6 +67,9 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
         records.push(output_record);
     }
 
+    for r in records.iter() {
+        println!("{:?}", r);
+    }
     Ok(records)
 }
 
