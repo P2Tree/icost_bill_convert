@@ -2,6 +2,7 @@ use csv::{ReaderBuilder, WriterBuilder};
 use encoding_rs::{Encoding, GBK, UTF_8};
 use encoding_rs_io::DecodeReaderBytesBuilder;
 use std::path::Path;
+use log::debug;
 
 use crate::{format_date, DynResult, OutputRecord};
 
@@ -37,26 +38,51 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
 
         let transaction_time = record.get(0).unwrap_or("").to_string();
         let transaction_type = record.get(1).unwrap_or("").to_string();
-        let remark = record.get(3).unwrap_or("").to_string();
+        let counterparty = record.get(2).unwrap_or("").to_string();
+        let mut transaction_direction = record.get(4).unwrap_or("").to_string();
+        let mut remark = record.get(3).unwrap_or("").to_string();
         let amount = record.get(5).unwrap_or("").to_string();
-        let payment_method = record.get(6).unwrap_or("").to_string();
+        let mut account_from = record.get(6).unwrap_or("").to_string();  // 收入、支出账户和转账时的转出账户
+        let mut account_to = String::from("");  // 只有在转账时使用，作为转入账户
+        let status = record.get(7).unwrap_or("").to_string();
 
         // 跳过不关心的交易类型
         // if transaction_type == "不计收支" {
         //     continue;
         // }
 
+        // 处理特别的交易类型
+        if transaction_direction == "/" {
+            if transaction_type.contains("转入零钱通") {
+                transaction_direction = "转账".to_string();
+                account_from = "零钱".to_string();
+                account_to = "零钱通".to_string();
+                remark = transaction_type;
+            }
+        }
+
+        if status == "已存入零钱" && account_from == "/" {
+            transaction_direction = "收入".to_string();
+            account_from = "零钱".to_string();
+            remark = counterparty;
+        }
+
         // 格式化日期
         let formatted_date = format_date(&transaction_time);
 
+        if transaction_direction != "支出" && transaction_direction != "收入" && transaction_direction != "转账" {
+            eprintln!("未知的交易方向: {}", transaction_direction);
+            continue;
+        }
+
         let output_record = OutputRecord {
             date: formatted_date,
-            r#type: transaction_type,
+            r#type: transaction_direction,
             amount,
             category1: String::new(), // 暂时留空
             category2: String::new(), // 暂时留空
-            account1: payment_method,
-            account2: String::new(), // 暂时留空
+            account1: account_from,
+            account2: account_to,
             remark,
             currency: "CNY".to_string(), // 默认值
             tag: String::new(),          // 暂时留空
@@ -66,7 +92,7 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
     }
 
     for r in records.iter() {
-        println!("{:?}", r);
+        debug!("{:?}", r);
     }
     Ok(records)
 }

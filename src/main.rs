@@ -28,7 +28,7 @@ struct OutputRecord {
     amount: String,
     #[serde(rename = "一级分类")]
     category1: String,
-    #[serde(rename = "二级分类2")]
+    #[serde(rename = "二级分类")]
     category2: String,
     #[serde(rename = "账户1")]
     account1: String,
@@ -70,6 +70,8 @@ fn format_date(input: &str) -> String {
 
 // 主函数：处理命令行参数并协调整个程序的执行流程
 fn main() -> Result<(), Box<dyn Error>> {
+    env_logger::init();
+
     // 获取命令行参数
     let args = Args::parse();
 
@@ -80,12 +82,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         None => &args.input,
     };
 
-    if args.source == Source::ZhiFuBao {
-        let records = zhifubao_read(input_file).expect("read input csv file error");
-        zhifubao_write(output_file, &records).expect("write to new csv file error");
-    } else if args.source == Source::WeiXin {
-        let records = weixin_read(input_file).expect("read input csv file error");
-        weixin_write(output_file, &records).expect("write to new csv file error");
+    match args.source {
+        Source::ZhiFuBao => {
+            let records = zhifubao_read(input_file).expect("read input csv file error");
+            zhifubao_write(output_file, &records).expect("write to new csv file error");
+        }
+        Source::WeiXin => {
+            let records = weixin_read(input_file).expect("read input csv file error");
+            weixin_write(output_file, &records).expect("write to new csv file error");
+        }
     }
 
     Ok(())
