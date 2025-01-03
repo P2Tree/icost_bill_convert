@@ -1,9 +1,9 @@
-use std::path::Path;
-use encoding_rs_io::DecodeReaderBytesBuilder;
-use encoding_rs::{GBK, UTF_8};
 use csv::{ReaderBuilder, WriterBuilder};
+use encoding_rs::{Encoding, GBK, UTF_8};
+use encoding_rs_io::DecodeReaderBytesBuilder;
+use std::path::Path;
 
-use crate::{OutputRecord, DynResult, format_date};
+use crate::{format_date, DynResult, OutputRecord};
 
 // 读取输入文件并处理数据
 pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
@@ -27,9 +27,7 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
         let record = result?;
 
         if !headers_found {
-            println!("{:?}", record);
             if record.get(0).map_or(false, |s| s.contains("交易时间")) {
-                println!("get header");
                 headers_found = true;
                 continue; // 跳过标题行
             } else {

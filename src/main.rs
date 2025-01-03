@@ -20,16 +20,26 @@ type DynResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 // 定义输出记录的结构体，使用 Serialize 特征以支持 CSV 序列化
 #[derive(Serialize, Debug)]
 struct OutputRecord {
-    date: String,      // 日期
-    r#type: String,    // 交易类型
-    amount: String,    // 金额
-    category1: String, // 分类1
-    category2: String, // 分类2
-    account1: String,  // 账户1
-    account2: String,  // 账户2
-    remark: String,    // 备注
-    currency: String,  // 货币类型
-    tag: String,       // 标签
+    #[serde(rename = "日期")]
+    date: String,
+    #[serde(rename = "类型")]
+    r#type: String,
+    #[serde(rename = "金额")]
+    amount: String,
+    #[serde(rename = "一级分类")]
+    category1: String,
+    #[serde(rename = "二级分类2")]
+    category2: String,
+    #[serde(rename = "账户1")]
+    account1: String,
+    #[serde(rename = "账户2")]
+    account2: String,
+    #[serde(rename = "备注")]
+    remark: String,
+    #[serde(rename = "货币")]
+    currency: String,
+    #[serde(rename = "标签")]
+    tag: String,
 }
 
 // 格式化日期字符串

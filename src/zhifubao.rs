@@ -1,9 +1,9 @@
-use std::path::Path;
-use encoding_rs_io::DecodeReaderBytesBuilder;
-use encoding_rs::GBK;
 use csv::{ReaderBuilder, WriterBuilder};
+use encoding_rs::GBK;
+use encoding_rs_io::DecodeReaderBytesBuilder;
+use std::path::Path;
 
-use crate::{OutputRecord, DynResult, format_date};
+use crate::{format_date, DynResult, OutputRecord};
 
 // 读取输入文件并处理数据
 pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
