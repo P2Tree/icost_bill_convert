@@ -73,14 +73,14 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
         if transaction_direction == "/" && transaction_type.contains("转入零钱通") {
             transaction_direction = "转账".to_string();
             account_from = "零钱".to_string();
-            account_to = "零钱通".to_string();
-            remark = transaction_type;
+            account_to = "微信零钱通".to_string();
+            remark = transaction_type.clone();
         }
 
         if status == "已存入零钱" && account_from == "/" {
             transaction_direction = "收入".to_string();
             account_from = "零钱".to_string();
-            remark = counterparty;
+            remark = counterparty.clone();
         }
 
         if account_from == "零钱" {
@@ -90,6 +90,9 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
             account_to = "零钱".to_string() + user_postfix;
         }
 
+        // 处理特别的分类信息
+        let (category1, category2) = filter_category(&counterparty, &remark, &transaction_type, amount);
+
         // 格式化日期
         let formatted_date = format_date(&transaction_time);
 
@@ -97,8 +100,8 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
             date: formatted_date,
             r#type: transaction_direction,
             amount,
-            category1: String::new(), // 暂时留空
-            category2: String::new(), // 暂时留空
+            category1,
+            category2,
             account1: account_from,
             account2: account_to,
             remark,
@@ -136,4 +139,26 @@ fn format_date(input: &str) -> String {
 
     // 输出格式为 "year 年 month 月 day 日 hour:minute:second"
     format!("{} 年 {} 月 {} 日 {}", year, month, day, time_part)
+}
+
+fn filter_category(counterparty: &str, remark: &str, transaction_type: &str, amount: f32) -> (String, String) {
+    if transaction_type == "转账" {
+        return ("".to_string(), "".to_string());
+    }
+
+    let mut category1 = "未知".to_string();
+    let mut category2 = "".to_string();
+    match counterparty {
+        "禹泉水处理设备" => {
+            category1 = "账单".to_string();
+            category2 = "水费".to_string();
+        },
+        "北京市顺义区妇幼保健院" => {
+            category1 = "医疗".to_string();
+            category2 = "门诊".to_string();
+        },
+        _ => {}
+    }
+
+    (category1, category2)
 }

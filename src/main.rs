@@ -79,6 +79,27 @@ fn main() -> Result<(), Box<dyn Error>> {
         output_write(output_file, &records).expect("write to new csv file error");
     }
 
+    let mut input_type_count = 0;
+    let mut output_type_count = 0;
+    let mut transfer_type_count = 0;
+    for record in records {
+        if record.r#type == "支出" {
+            input_type_count += 1;
+        } else if record.r#type == "收入" {
+            output_type_count += 1;
+        } else if record.r#type == "转账" {
+            transfer_type_count += 1;
+            if record.account2 == "未知" {
+                println!("{}: 转账记录缺少目标账户，请手动添加", record.date);
+            }
+        } else {
+            println!("{}: 未知的交易类型: {}，请手动处理", record.date, record.r#type);
+        }
+    }
+    println!("支出记录数: {}", input_type_count);
+    println!("收入记录数: {}", output_type_count);
+    println!("转账记录数: {}", transfer_type_count);
+
     Ok(())
 }
 

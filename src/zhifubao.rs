@@ -43,6 +43,7 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
         }
 
         let transaction_time = record.get(0).unwrap_or("").to_string();
+        let counterparty = record.get(2).unwrap_or("").to_string();
         let mut transaction_type = record.get(5).unwrap_or("").to_string();
         let remark = record.get(4).unwrap_or("").to_string();
         let amount = record
@@ -56,14 +57,14 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
 
         // 处理特别的交易类型
         if status == "已关闭" {
-            debug!("跳过已关闭交易：{:?}", record);
+            debug!("跳过已关闭交易: {:?}", record);
             continue;
         } else if status == "退款成功" {
             transaction_type = "退款".to_string();
         } else if status == "还款成功" && remark == "信用卡还款" {
             transaction_type = "转账".to_string();
-            println!("需要手动添加还款目标卡，日期：{}", transaction_time);
-            account_to = String::from("?????");
+            account_to = "未知".to_string();
+            warn!("需要手动添加还款目标卡: {:?}", record);
         }
 
         if transaction_type == "不计收支" {
@@ -77,8 +78,11 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
             }
         }
 
-        if account_from == "账户余额" {
+        if account_from == "账户余额" || account_from == "支付宝零钱" {
             account_from = "支付宝零钱".to_string() + user_postfix;
+        }
+        if account_to == "账户余额"  || account_to == "支付宝零钱"{
+            account_to = "支付宝零钱".to_string() + user_postfix;
         }
         if account_from == "余额宝" {
             account_from = "余额宝".to_string() + user_postfix;
@@ -98,6 +102,9 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
             .unwrap_or(&account_to)
             .to_string();
 
+        // 处理特别的分类信息
+        let (category1, category2) = filter_category(&counterparty, &remark, &transaction_type, amount);
+
         // 格式化日期
         let formatted_date = format_date(&transaction_time);
 
@@ -105,8 +112,8 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
             date: formatted_date,
             r#type: transaction_type,
             amount,
-            category1: String::new(), // 暂时留空
-            category2: String::new(), // 暂时留空
+            category1,
+            category2,
             account1: account_from,
             account2: account_to,
             remark,
@@ -144,4 +151,83 @@ fn format_date(input: &str) -> String {
 
     // 输出格式为 "year 年 month 月 day 日 hour:minute:second"
     format!("{} 年 {} 月 {} 日 {}", year, month, day, time_part)
+}
+
+fn filter_category(counterparty: &str, remark: &str, transaction_type: &str, amount: f32) -> (String, String) {
+    if transaction_type == "转账" {
+        return ("".to_string(), "".to_string());
+    }
+
+    let mut category1 = "未知".to_string();
+    let mut category2 = "".to_string();
+    match counterparty {
+        "北京一卡通" => {
+            category1 = "交通".to_string();
+            if amount < 2.0 {
+                category2 = "公交".to_string();
+            } else {
+                category2 = "地铁".to_string();
+            }
+        }, 
+        "饿了么" => {
+            category1 = "餐饮".to_string();
+            category2 = "外卖".to_string();
+        }, 
+        "兴全基金管理有限公司" => {
+            if transaction_type == "收入" {
+                category1 = "资本".to_string();
+                category2 = "投资收入".to_string();
+            } else if transaction_type == "支出" {
+                category1 = "资本".to_string();
+                category2 = "投资亏损".to_string();
+            }
+        },
+        "中国移动" => {
+            if remark.contains("话费充值") {
+                category1 = "账单".to_string();
+                category2 = "电话费".to_string();
+            }
+        },
+        "蚂蚁森林" => {
+            category1 = "意外收入".to_string();
+        },
+        "Steam" => {
+            category1 = "网络".to_string();
+            category2 = "游戏".to_string();
+        },
+        "众博康健大药房" => {
+            category1 = "医疗".to_string();
+            category2 = "药品".to_string();
+        },
+        "北京永辉超市有限公司" => {
+            category1 = "食材".to_string();
+            category2 = "蔬菜".to_string();
+        },
+        "北京大学口腔医院" => {
+            category1 = "医疗".to_string();
+            category2 = "牙齿".to_string();
+        },
+        "淮南牛肉汤" => {
+            category1 = "餐饮".to_string();
+            category2 = "三餐".to_string();
+        },
+        "汤鲜生浦项中心店" => {
+            category1 = "餐饮".to_string();
+            category2 = "三餐".to_string();
+        },
+        _ => {}
+    }
+    match remark {
+        "电费" => {
+            category1 = "账单".to_string();
+            category2 = "电费".to_string();
+        },
+        "火车票" => {
+            category1 = "交通".to_string();
+            category2 = "火车".to_string();
+        }
+        _ => {}
+    }
+
+    (category1, category2)
 }
