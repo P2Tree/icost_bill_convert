@@ -26,11 +26,6 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
     let mut records = Vec::new();
     let mut headers_found = false;
 
-    let user_postfix = match user {
-        User::Yang => "-杨",
-        User::Han => "-韩",
-    };
-
     for result in rdr.records() {
         let record = result?;
 
@@ -83,15 +78,11 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
             remark = counterparty.clone();
         }
 
-        if account_from == "零钱" {
-            account_from = "零钱".to_string() + user_postfix;
-        }
-        if account_to == "零钱" {
-            account_to = "零钱".to_string() + user_postfix;
-        }
+        account_from = append_user_postfix(&account_from, user);
+        account_to = append_user_postfix(&account_to, user);
 
         // 处理特别的分类信息
-        let (category1, category2) = filter_category(&counterparty, &remark, &transaction_type, amount);
+        let (category1, category2) = filter_category(&counterparty, &remark, &transaction_direction, amount);
 
         // 格式化日期
         let formatted_date = format_date(&transaction_time);
@@ -141,8 +132,8 @@ fn format_date(input: &str) -> String {
     format!("{} 年 {} 月 {} 日 {}", year, month, day, time_part)
 }
 
-fn filter_category(counterparty: &str, remark: &str, transaction_type: &str, amount: f32) -> (String, String) {
-    if transaction_type == "转账" {
+fn filter_category(counterparty: &str, remark: &str, transaction_direction: &str, amount: f32) -> (String, String) {
+    if transaction_direction == "转账" {
         return ("".to_string(), "".to_string());
     }
 
@@ -161,4 +152,15 @@ fn filter_category(counterparty: &str, remark: &str, transaction_type: &str, amo
     }
 
     (category1, category2)
+}
+
+fn append_user_postfix(account: &str, user: &User) -> String {
+    if !(account == "零钱" || account == "微信零钱通") {
+        return account.to_string();
+    }
+
+    match user {
+        User::Yang => account.to_string() + "-杨",
+        User::Han => account.to_string() + "-韩",
+    }
 }

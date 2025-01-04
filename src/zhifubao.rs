@@ -55,6 +55,9 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
         let mut account_to = String::from(""); // 只有在转账时使用，作为转入账户
         let status = record.get(8).unwrap_or("").to_string();
 
+        append_user_postfix(&account_from, user);
+        append_user_postfix(&account_to, user);
+
         // 处理特别的交易类型
         if status == "已关闭" {
             debug!("跳过已关闭交易: {:?}", record);
@@ -78,18 +81,8 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
             }
         }
 
-        if account_from == "账户余额" || account_from == "支付宝零钱" {
-            account_from = "支付宝零钱".to_string() + user_postfix;
-        }
-        if account_to == "账户余额"  || account_to == "支付宝零钱"{
-            account_to = "支付宝零钱".to_string() + user_postfix;
-        }
-        if account_from == "余额宝" {
-            account_from = "余额宝".to_string() + user_postfix;
-        }
-        if account_to == "余额宝" {
-            account_to = "余额宝".to_string() + user_postfix;
-        }
+        account_from = append_user_postfix(&account_from, user);
+        account_to = append_user_postfix(&account_to, user);
 
         account_from = account_from
             .split('&')
@@ -230,4 +223,19 @@ fn filter_category(counterparty: &str, remark: &str, transaction_type: &str, amo
     }
 
     (category1, category2)
+}
+
+fn append_user_postfix(account: &str, user: &User) -> String {
+    let mut account = account.to_string();
+    if account == "账户余额" {
+        account = String::from("支付宝零钱");
+    }
+    if !(account == "支付宝零钱" || account == "余额宝") {
+        return account.to_string();
+    }
+
+    match user {
+        User::Yang => account.to_string() + "-杨",
+        User::Han => account.to_string() + "-韩",
+    }
 }
