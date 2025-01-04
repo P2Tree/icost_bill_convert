@@ -2,6 +2,7 @@ use csv::{ReaderBuilder, WriterBuilder};
 use encoding_rs::GBK;
 use encoding_rs_io::DecodeReaderBytesBuilder;
 use std::path::Path;
+use log::{debug, warn, error};
 
 use crate::{DynResult, OutputRecord};
 
@@ -36,14 +37,36 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
         }
 
         let transaction_time = record.get(0).unwrap_or("").to_string();
-        let transaction_type = record.get(1).unwrap_or("").to_string();
+        let mut transaction_type = record.get(5).unwrap_or("").to_string();
         let remark = record.get(4).unwrap_or("").to_string();
-        let amount = record.get(6).unwrap_or("").parse::<u64>().expect("不支持的金额输入格式");
-        let payment_method = record.get(7).unwrap_or("").to_string();
+        let amount = record.get(6).unwrap_or("").parse::<f32>().expect("不支持的金额输入格式");
+        let mut account_from = record.get(7).unwrap_or("").to_string();
+        let mut account_to = String::from("");  // 只有在转账时使用，作为转入账户
+        let status = record.get(8).unwrap_or("").to_string();
 
-        // 跳过不关心的交易类型
-        if transaction_type == "不计收支" {
+        // 处理特别的交易类型
+        if status == "已关闭" {
+            debug!("跳过已关闭交易：{:?}", record);
             continue;
+        } else if status == "退款成功" {
+            transaction_type = "退款".to_string();
+        } else if status == "还款成功" && remark == "信用卡还款" {
+            transaction_type = "转账".to_string();
+            println!("需要手动添加还款目标卡，日期：{}", transaction_time);
+            account_to = String::from("?????");
+        }
+        if account_from == "账户余额" {
+            account_from = "支付宝零钱".to_string();
+        }
+        if transaction_type == "不计收支" {
+            if remark.contains("余额宝") && remark.contains("收益发放") {
+                transaction_type = "收入".to_string();
+            }
+            if remark.contains("余额宝-自动转入") {
+                transaction_type = "转账".to_string();
+                account_to = "余额宝".to_string();
+                account_from = "支付宝零钱".to_string();
+            }
         }
 
         // 格式化日期
@@ -55,8 +78,8 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
             amount,
             category1: String::new(), // 暂时留空
             category2: String::new(), // 暂时留空
-            account1: payment_method,
-            account2: String::new(), // 暂时留空
+            account1: account_from,
+            account2: account_to,
             remark,
             currency: "CNY".to_string(), // 默认值
             tag: String::new(),          // 暂时留空
@@ -66,18 +89,6 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
     }
 
     Ok(records)
-}
-
-// 将处理后的记录写入输出文件
-pub fn write_output_file(output_file: &Path, records: &Vec<OutputRecord>) -> DynResult<()> {
-    let mut wtr = WriterBuilder::new().from_path(output_file)?;
-
-    for record in records {
-        wtr.serialize(record)?;
-    }
-
-    wtr.flush()?;
-    Ok(())
 }
 
 // 格式化日期字符串

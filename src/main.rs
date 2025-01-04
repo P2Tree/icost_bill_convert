@@ -9,12 +9,13 @@ use arguments::{Args, Source};
 
 mod zhifubao;
 use zhifubao::read_input_file as zhifubao_read;
-use zhifubao::write_output_file as zhifubao_write;
 
 mod weixin;
 use weixin::read_input_file as weixin_read;
-use weixin::write_output_file as weixin_write;
-use weixin::check as weixin_check;
+
+mod output;
+use output::check as output_check;
+use output::write_output_file as output_write;
 
 type DynResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
@@ -26,7 +27,7 @@ struct OutputRecord {
     #[serde(rename = "类型")]
     r#type: String,
     #[serde(rename = "金额")]
-    amount: u64,
+    amount: f32,
     #[serde(rename = "一级分类")]
     category1: String,
     #[serde(rename = "二级分类")]
@@ -57,17 +58,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         None => &args.input,
     };
 
-    match args.source {
+    let records = match args.source {
         Source::ZhiFuBao => {
-            let records = zhifubao_read(input_file).expect("read input csv file error");
-            zhifubao_write(output_file, &records).expect("write to new csv file error");
+            zhifubao_read(input_file).expect("read input csv file error")
         }
         Source::WeiXin => {
-            let records = weixin_read(input_file).expect("read input csv file error");
-            weixin_check(&records);
-            weixin_write(output_file, &records).expect("write to new csv file error");
+            weixin_read(input_file).expect("read input csv file error")
         }
-    }
+    };
+    output_check(&records);
+    output_write(output_file, &records).expect("write to new csv file error");
 
     Ok(())
 }
