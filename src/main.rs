@@ -55,6 +55,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // 设置输入和输出文件路径
     let input_files: Vec<&str> = args.input.split(',').collect();
     let output_file = &args.output.unwrap_or(PathBuf::from("output.csv"));
+    let user = &args.user;
 
     let mut records: Vec<OutputRecord> = Vec::new();
     for input_file in input_files {
@@ -62,12 +63,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         match source_selector(input_file).unwrap() {
             Source::ZhiFuBao => {
                 println!("处理支付宝账单: {}", input_file.display());
-                let current_records = zhifubao_read(input_file).expect("read input csv file error");
+                let current_records =
+                    zhifubao_read(input_file, user).expect("read input csv file error");
                 records.extend(current_records);
             }
             Source::WeiXin => {
                 println!("处理微信账单: {}", input_file.display());
-                let current_records = weixin_read(input_file).expect("read input csv file error");
+                let current_records =
+                    weixin_read(input_file, user).expect("read input csv file error");
                 records.extend(current_records);
             }
         };

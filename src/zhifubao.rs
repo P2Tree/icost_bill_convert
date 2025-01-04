@@ -4,10 +4,11 @@ use encoding_rs_io::DecodeReaderBytesBuilder;
 use log::{debug, error, warn};
 use std::path::Path;
 
+use crate::arguments::User;
 use crate::{DynResult, OutputRecord};
 
 // 读取输入文件并处理数据
-pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
+pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRecord>> {
     // 打开文件
     let file = std::fs::File::open(input_file)?;
     let decoder = DecodeReaderBytesBuilder::new()
@@ -23,6 +24,11 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
 
     let mut records = Vec::new();
     let mut headers_found = false;
+
+    let user_postfix = match user {
+        User::Yang => "-杨",
+        User::Han => "-韩",
+    };
 
     for result in rdr.records() {
         let record = result?;
@@ -59,9 +65,7 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
             println!("需要手动添加还款目标卡，日期：{}", transaction_time);
             account_to = String::from("?????");
         }
-        if account_from == "账户余额" {
-            account_from = "支付宝零钱".to_string();
-        }
+
         if transaction_type == "不计收支" {
             if remark.contains("余额宝") && remark.contains("收益发放") {
                 transaction_type = "收入".to_string();
@@ -72,6 +76,27 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
                 account_from = "支付宝零钱".to_string();
             }
         }
+
+        if account_from == "账户余额" {
+            account_from = "支付宝零钱".to_string() + user_postfix;
+        }
+        if account_from == "余额宝" {
+            account_from = "余额宝".to_string() + user_postfix;
+        }
+        if account_to == "余额宝" {
+            account_to = "余额宝".to_string() + user_postfix;
+        }
+
+        account_from = account_from
+            .split('&')
+            .next()
+            .unwrap_or(&account_from)
+            .to_string();
+        account_to = account_to
+            .split('&')
+            .next()
+            .unwrap_or(&account_to)
+            .to_string();
 
         // 格式化日期
         let formatted_date = format_date(&transaction_time);

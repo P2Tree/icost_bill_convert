@@ -5,10 +5,11 @@ use log::{debug, error, warn};
 use regex::Regex;
 use std::path::Path;
 
+use crate::arguments::User;
 use crate::{DynResult, OutputRecord};
 
 // 读取输入文件并处理数据
-pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
+pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRecord>> {
     // 打开文件
     let file = std::fs::File::open(input_file)?;
     let decoder = DecodeReaderBytesBuilder::new()
@@ -24,6 +25,11 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
 
     let mut records = Vec::new();
     let mut headers_found = false;
+
+    let user_postfix = match user {
+        User::Yang => "-杨",
+        User::Han => "-韩",
+    };
 
     for result in rdr.records() {
         let record = result?;
@@ -75,6 +81,13 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
             transaction_direction = "收入".to_string();
             account_from = "零钱".to_string();
             remark = counterparty;
+        }
+
+        if account_from == "零钱" {
+            account_from = "零钱".to_string() + user_postfix;
+        }
+        if account_to == "零钱" {
+            account_to = "零钱".to_string() + user_postfix;
         }
 
         // 格式化日期
