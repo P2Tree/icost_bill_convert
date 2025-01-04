@@ -15,6 +15,7 @@ use weixin::read_input_file as weixin_read;
 
 mod output;
 use output::check as output_check;
+use output::sort_by_time;
 use output::write_output_file as output_write;
 
 type DynResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
@@ -63,13 +64,14 @@ fn main() -> Result<(), Box<dyn Error>> {
                 println!("处理支付宝账单: {}", input_file.display());
                 let current_records = zhifubao_read(input_file).expect("read input csv file error");
                 records.extend(current_records);
-            },
+            }
             Source::WeiXin => {
                 println!("处理微信账单: {}", input_file.display());
                 let current_records = weixin_read(input_file).expect("read input csv file error");
                 records.extend(current_records);
-            },
+            }
         };
+        sort_by_time(&mut records);
         output_check(&records);
         output_write(output_file, &records).expect("write to new csv file error");
     }

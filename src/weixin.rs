@@ -1,8 +1,8 @@
-use regex::Regex;
 use csv::{ReaderBuilder, WriterBuilder};
 use encoding_rs::{Encoding, GBK, UTF_8};
 use encoding_rs_io::DecodeReaderBytesBuilder;
 use log::{debug, error, warn};
+use regex::Regex;
 use std::path::Path;
 
 use crate::{DynResult, OutputRecord};
@@ -42,12 +42,12 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
         let counterparty = record.get(2).unwrap_or("").to_string();
         let mut transaction_direction = record.get(4).unwrap_or("").to_string();
         let mut remark = record.get(3).unwrap_or("").to_string();
-        let amount_str = record
-            .get(5)
-            .unwrap_or("");
+        let amount_str = record.get(5).unwrap_or("");
 
-        let re = Regex::new(r"^\D*").unwrap();  // delete all non-digit characters until the first digit
-        let amount = re.replace(amount_str, "").to_string()
+        let re = Regex::new(r"^\D*").unwrap(); // delete all non-digit characters until the first digit
+        let amount = re
+            .replace(amount_str, "")
+            .to_string()
             .parse::<f32>()
             .map_err(|e| format!("不支持的金额输入格式: {}，日期: {}", e, transaction_time))?;
         let mut account_from = record.get(6).unwrap_or("").to_string(); // 收入、支出账户和转账时的转出账户
@@ -90,7 +90,7 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
             account2: account_to,
             remark,
             currency,
-            tag: String::new(),          // 暂时留空
+            tag: String::new(), // 暂时留空
         };
 
         records.push(output_record);

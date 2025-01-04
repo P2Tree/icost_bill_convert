@@ -1,7 +1,11 @@
 use crate::{DynResult, OutputRecord};
 use csv::WriterBuilder;
 use log::{error, warn};
-use std::path::Path;
+use std::{path::Path, process::Output};
+
+pub fn sort_by_time(records: &mut Vec<OutputRecord>) {
+    records.sort_by(|a, b| b.date.cmp(&a.date));
+}
 
 pub fn check(records: &[OutputRecord]) {
     let mut has_error = false;
