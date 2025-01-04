@@ -52,22 +52,36 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
     // 设置输入和输出文件路径
-    let input_file = &args.input;
-    let output_file = match &args.output {
-        Some(output_file) => output_file,
-        None => &args.input,
-    };
+    let input_files: Vec<&str> = args.input.split(',').collect();
+    let output_file = &args.output.unwrap_or(PathBuf::from("output.csv"));
 
-    let records = match args.source {
-        Source::ZhiFuBao => {
-            zhifubao_read(input_file).expect("read input csv file error")
-        }
-        Source::WeiXin => {
-            weixin_read(input_file).expect("read input csv file error")
-        }
-    };
-    output_check(&records);
-    output_write(output_file, &records).expect("write to new csv file error");
+    let mut records: Vec<OutputRecord> = Vec::new();
+    for input_file in input_files {
+        let input_file = Path::new(input_file);
+        match source_selector(input_file).unwrap() {
+            Source::ZhiFuBao => {
+                println!("处理支付宝账单: {}", input_file.display());
+                let current_records = zhifubao_read(input_file).expect("read input csv file error");
+                records.extend(current_records);
+            },
+            Source::WeiXin => {
+                println!("处理微信账单: {}", input_file.display());
+                let current_records = weixin_read(input_file).expect("read input csv file error");
+                records.extend(current_records);
+            },
+        };
+        output_check(&records);
+        output_write(output_file, &records).expect("write to new csv file error");
+    }
 
     Ok(())
+}
+
+fn source_selector(input_file: &Path) -> DynResult<Source> {
+    let file_name = input_file.file_name().unwrap().to_str().unwrap();
+    match file_name {
+        "zhifubao.csv" => Ok(Source::ZhiFuBao),
+        "weixin.csv" => Ok(Source::WeiXin),
+        _ => Err("Invalid source".into()),
+    }
 }

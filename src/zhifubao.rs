@@ -1,8 +1,8 @@
 use csv::{ReaderBuilder, WriterBuilder};
 use encoding_rs::GBK;
 use encoding_rs_io::DecodeReaderBytesBuilder;
+use log::{debug, error, warn};
 use std::path::Path;
-use log::{debug, warn, error};
 
 use crate::{DynResult, OutputRecord};
 
@@ -39,9 +39,13 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
         let transaction_time = record.get(0).unwrap_or("").to_string();
         let mut transaction_type = record.get(5).unwrap_or("").to_string();
         let remark = record.get(4).unwrap_or("").to_string();
-        let amount = record.get(6).unwrap_or("").parse::<f32>().expect("不支持的金额输入格式");
+        let amount = record
+            .get(6)
+            .unwrap()
+            .parse::<f32>()
+            .expect("不支持的金额输入格式");
         let mut account_from = record.get(7).unwrap_or("").to_string();
-        let mut account_to = String::from("");  // 只有在转账时使用，作为转入账户
+        let mut account_to = String::from(""); // 只有在转账时使用，作为转入账户
         let status = record.get(8).unwrap_or("").to_string();
 
         // 处理特别的交易类型

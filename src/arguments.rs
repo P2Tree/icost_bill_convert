@@ -7,11 +7,8 @@ use crate::DynResult;
 #[derive(Parser, Debug)]
 #[command(name = "icost-bill-convert", author, version, about)]
 pub struct Args {
-    #[clap(short='s', long="source", value_parser=parse_source)]
-    pub source: Source,
-
-    #[clap(short='i', long="input", value_parser=clap::value_parser!(PathBuf))]
-    pub input: PathBuf,
+    #[clap(short = 'i', long = "input")]
+    pub input: String,
 
     #[clap(short='o', long="output", value_parser=clap::value_parser!(PathBuf))]
     pub output: Option<PathBuf>,

@@ -1,18 +1,25 @@
 use crate::{DynResult, OutputRecord};
-use log::{warn, error};
-use std::path::Path;
 use csv::WriterBuilder;
+use log::{error, warn};
+use std::path::Path;
 
 pub fn check(records: &[OutputRecord]) {
     let mut has_error = false;
     for record in records.iter() {
         // 检查“时间”
-        // TODO: 
+        // TODO:
 
         // 检查“类型”
         let transaction_type = &record.r#type;
-        if transaction_type != "支出" && transaction_type != "收入" && transaction_type != "转账" && transaction_type != "退款" {
-            warn!("未知的交易方向: {}, 日期: {}", transaction_type, record.date);
+        if transaction_type != "支出"
+            && transaction_type != "收入"
+            && transaction_type != "转账"
+            && transaction_type != "退款"
+        {
+            warn!(
+                "未知的交易方向: {}, 日期: {}",
+                transaction_type, record.date
+            );
             has_error = true;
             continue;
         }
@@ -60,6 +67,7 @@ pub fn check(records: &[OutputRecord]) {
 
 // 将处理后的记录写入输出文件
 pub fn write_output_file(output_file: &Path, records: &Vec<OutputRecord>) -> DynResult<()> {
+    println!("写入输出文件: {}", output_file.display());
     let mut wtr = WriterBuilder::new().from_path(output_file)?;
 
     for record in records {

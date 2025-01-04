@@ -1,8 +1,9 @@
+use regex::Regex;
 use csv::{ReaderBuilder, WriterBuilder};
 use encoding_rs::{Encoding, GBK, UTF_8};
 use encoding_rs_io::DecodeReaderBytesBuilder;
+use log::{debug, error, warn};
 use std::path::Path;
-use log::{debug, warn, error};
 
 use crate::{DynResult, OutputRecord};
 
@@ -41,10 +42,21 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
         let counterparty = record.get(2).unwrap_or("").to_string();
         let mut transaction_direction = record.get(4).unwrap_or("").to_string();
         let mut remark = record.get(3).unwrap_or("").to_string();
-        let amount = record.get(5).unwrap_or("").parse::<f32>().expect("不支持的金额输入格式");
-        let mut account_from = record.get(6).unwrap_or("").to_string();  // 收入、支出账户和转账时的转出账户
-        let mut account_to = String::from("");  // 只有在转账时使用，作为转入账户
+        let amount_str = record
+            .get(5)
+            .unwrap_or("");
+
+        let re = Regex::new(r"^\D*").unwrap();  // delete all non-digit characters until the first digit
+        let amount = re.replace(amount_str, "").to_string()
+            .parse::<f32>()
+            .map_err(|e| format!("不支持的金额输入格式: {}，日期: {}", e, transaction_time))?;
+        let mut account_from = record.get(6).unwrap_or("").to_string(); // 收入、支出账户和转账时的转出账户
+        let mut account_to = String::from(""); // 只有在转账时使用，作为转入账户
         let status = record.get(7).unwrap_or("").to_string();
+        let currency = match amount_str.chars().next() {
+            Some('¥') => "CNY".to_string(),
+            _ => "".to_string(),
+        };
 
         // 跳过不关心的交易类型
         // if transaction_type == "不计收支" {
@@ -52,13 +64,11 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
         // }
 
         // 处理特别的交易类型
-        if transaction_direction == "/" {
-            if transaction_type.contains("转入零钱通") {
-                transaction_direction = "转账".to_string();
-                account_from = "零钱".to_string();
-                account_to = "零钱通".to_string();
-                remark = transaction_type;
-            }
+        if transaction_direction == "/" && transaction_type.contains("转入零钱通") {
+            transaction_direction = "转账".to_string();
+            account_from = "零钱".to_string();
+            account_to = "零钱通".to_string();
+            remark = transaction_type;
         }
 
         if status == "已存入零钱" && account_from == "/" {
@@ -79,16 +89,13 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
             account1: account_from,
             account2: account_to,
             remark,
-            currency: "CNY".to_string(), // 默认值
+            currency,
             tag: String::new(),          // 暂时留空
         };
 
         records.push(output_record);
     }
 
-    for r in records.iter() {
-        debug!("{:?}", r);
-    }
     Ok(records)
 }
 
