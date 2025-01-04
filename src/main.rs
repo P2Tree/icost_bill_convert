@@ -14,6 +14,7 @@ use zhifubao::write_output_file as zhifubao_write;
 mod weixin;
 use weixin::read_input_file as weixin_read;
 use weixin::write_output_file as weixin_write;
+use weixin::check as weixin_check;
 
 type DynResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
@@ -25,7 +26,7 @@ struct OutputRecord {
     #[serde(rename = "类型")]
     r#type: String,
     #[serde(rename = "金额")]
-    amount: String,
+    amount: u64,
     #[serde(rename = "一级分类")]
     category1: String,
     #[serde(rename = "二级分类")]
@@ -40,32 +41,6 @@ struct OutputRecord {
     currency: String,
     #[serde(rename = "标签")]
     tag: String,
-}
-
-// 格式化日期字符串
-// 输入格式：year/month/day hour:minute
-// 输出格式：year 年 month 月 day 日 hour:minute:second
-fn format_date(input: &str) -> String {
-    // 输入格式为 "year/month/day hour:minute"
-    let parts: Vec<&str> = input.split_whitespace().collect();
-    if parts.len() != 2 {
-        return input.to_string(); // 返回原始字符串以防格式不正确
-    }
-
-    let date_part = parts[0];
-    let time_part = parts[1];
-
-    let date_components: Vec<&str> = date_part.split('/').collect();
-    if date_components.len() != 3 {
-        return input.to_string(); // 返回原始字符串以防格式不正确
-    }
-
-    let year = date_components[0];
-    let month = date_components[1];
-    let day = date_components[2];
-
-    // 输出格式为 "year 年 month 月 day 日 hour:minute:second"
-    format!("{} 年 {} 月 {} 日 {}", year, month, day, time_part)
 }
 
 // 主函数：处理命令行参数并协调整个程序的执行流程
@@ -89,6 +64,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         Source::WeiXin => {
             let records = weixin_read(input_file).expect("read input csv file error");
+            weixin_check(&records);
             weixin_write(output_file, &records).expect("write to new csv file error");
         }
     }

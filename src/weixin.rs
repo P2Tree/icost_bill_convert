@@ -2,9 +2,9 @@ use csv::{ReaderBuilder, WriterBuilder};
 use encoding_rs::{Encoding, GBK, UTF_8};
 use encoding_rs_io::DecodeReaderBytesBuilder;
 use std::path::Path;
-use log::debug;
+use log::{debug, warn, error};
 
-use crate::{format_date, DynResult, OutputRecord};
+use crate::{DynResult, OutputRecord};
 
 // 读取输入文件并处理数据
 pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
@@ -41,7 +41,7 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
         let counterparty = record.get(2).unwrap_or("").to_string();
         let mut transaction_direction = record.get(4).unwrap_or("").to_string();
         let mut remark = record.get(3).unwrap_or("").to_string();
-        let amount = record.get(5).unwrap_or("").to_string();
+        let amount = record.get(5).unwrap_or("").parse::<u64>().expect("不支持的金额输入格式");
         let mut account_from = record.get(6).unwrap_or("").to_string();  // 收入、支出账户和转账时的转出账户
         let mut account_to = String::from("");  // 只有在转账时使用，作为转入账户
         let status = record.get(7).unwrap_or("").to_string();
@@ -70,11 +70,6 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
         // 格式化日期
         let formatted_date = format_date(&transaction_time);
 
-        if transaction_direction != "支出" && transaction_direction != "收入" && transaction_direction != "转账" {
-            eprintln!("未知的交易方向: {}", transaction_direction);
-            continue;
-        }
-
         let output_record = OutputRecord {
             date: formatted_date,
             r#type: transaction_direction,
@@ -97,8 +92,63 @@ pub fn read_input_file(input_file: &Path) -> DynResult<Vec<OutputRecord>> {
     Ok(records)
 }
 
+pub fn check(records: &[OutputRecord]) {
+    let mut has_error = false;
+    for record in records.iter() {
+        // 检查“时间”
+        // TODO: 
+
+        // 检查“类型”
+        let transaction_type = &record.r#type;
+        if transaction_type != "支出" && transaction_type != "收入" && transaction_type != "转账" {
+            warn!("未知的交易方向: {}", transaction_type);
+            has_error = true;
+            continue;
+        }
+
+        // 检查“金额”
+        // TODO:
+
+        // 检查“一级分类”
+        // TODO:
+
+        // 检查“二级分类”
+        // TODO:
+
+        // 检查“账户1”
+        let account_from = &record.account1;
+        if account_from == "" {
+            warn!("账户1为空");
+            has_error = true;
+            continue;
+        }
+
+        // 检查“账户2”
+        let account_to = &record.account2;
+        if transaction_type == "转账" && account_to == "" {
+            warn!("转账时账户2为空");
+            has_error = true;
+            continue;
+        }
+
+        // 检查“备注”
+        // TODO:
+
+        // 检查“货币”
+        // TODO:
+
+        // 检查“标签”
+        // TODO:
+    }
+
+    if has_error {
+        error!("检查失败，请检查程序逻辑");
+        std::process::exit(1);
+    }
+}
+
 // 将处理后的记录写入输出文件
-pub fn write_output_file(output_file: &Path, records: &[OutputRecord]) -> DynResult<()> {
+pub fn write_output_file(output_file: &Path, records: &Vec<OutputRecord>) -> DynResult<()> {
     let mut wtr = WriterBuilder::new().from_path(output_file)?;
 
     for record in records {
@@ -107,4 +157,30 @@ pub fn write_output_file(output_file: &Path, records: &[OutputRecord]) -> DynRes
 
     wtr.flush()?;
     Ok(())
+}
+
+// 格式化日期字符串
+// 输入格式：year/month/day hour:minute
+// 输出格式：year 年 month 月 day 日 hour:minute:second
+fn format_date(input: &str) -> String {
+    // 输入格式为 "year/month/day hour:minute"
+    let parts: Vec<&str> = input.split_whitespace().collect();
+    if parts.len() != 2 {
+        return input.to_string(); // 返回原始字符串以防格式不正确
+    }
+
+    let date_part = parts[0];
+    let time_part = parts[1];
+
+    let date_components: Vec<&str> = date_part.split('/').collect();
+    if date_components.len() != 3 {
+        return input.to_string(); // 返回原始字符串以防格式不正确
+    }
+
+    let year = date_components[0];
+    let month = date_components[1];
+    let day = date_components[2];
+
+    // 输出格式为 "year 年 month 月 day 日 hour:minute:second"
+    format!("{} 年 {} 月 {} 日 {}", year, month, day, time_part)
 }
