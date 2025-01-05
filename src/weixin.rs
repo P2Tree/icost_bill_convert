@@ -1,11 +1,12 @@
 use csv::{ReaderBuilder, WriterBuilder};
 use encoding_rs::{Encoding, GBK, UTF_8};
 use encoding_rs_io::DecodeReaderBytesBuilder;
-use log::{debug, error, warn};
+use log::{debug, error, info, warn};
 use regex::Regex;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use crate::arguments::User;
+use crate::arguments::{self, User};
+use crate::output::{check as output_check, sort_by_time, write_output_file as output_write};
 use crate::{DynResult, OutputRecord};
 
 // 读取输入文件并处理数据
@@ -195,4 +196,13 @@ fn append_user_postfix(account: &str, user: &User) -> String {
         User::Yang => account.to_string() + "-杨",
         User::Han => account.to_string() + "-韩",
     }
+}
+
+pub fn handle_bill(user: &arguments::User, records: &mut Vec<OutputRecord>, input_file: &PathBuf) {
+    let input_file = Path::new(input_file);
+    info!("处理账单文件: {}", input_file.display());
+    println!("处理微信账单: {}", input_file.display());
+    let current_records = read_input_file(input_file, user).expect("read input csv file error");
+    println!("处理微信账单条目数量: {}", current_records.len());
+    records.extend(current_records);
 }

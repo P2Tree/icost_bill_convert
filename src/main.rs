@@ -1,19 +1,21 @@
 use clap::{self, Parser};
+use log::{debug, info};
 use serde::Serialize;
 use std::env;
 use std::error::Error;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 use std::path::{Path, PathBuf};
-use log::{debug, info};
 
 mod arguments;
 use arguments::{Args, Source};
 
 mod zhifubao;
+use zhifubao::handle_bill as zhifubao_handle;
 use zhifubao::read_input_file as zhifubao_read;
 
 mod weixin;
+use weixin::handle_bill as weixin_handle;
 use weixin::read_input_file as weixin_read;
 
 mod output;
@@ -56,32 +58,31 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
     // 设置输入和输出文件路径
-    let input_files: Vec<&str> = args.input.split(',').collect();
+    let zfb_bill = args.zhifubao_bill;
+    let wx_bill = args.weixin_bill;
+    if zfb_bill.is_none() && wx_bill.is_none() {
+        println!("请提供至少一个账单文件");
+        return Ok(());
+    }
+
     let output_file = &args.output.unwrap_or(PathBuf::from("output.csv"));
     let user = &args.user;
 
     let mut records: Vec<OutputRecord> = Vec::new();
-    for input_file in input_files {
-        let input_file = Path::new(input_file.trim());
-        info!("处理账单文件: {}", input_file.display());
-        match source_selector(input_file).unwrap() {
-            Source::ZhiFuBao => {
-                println!("处理支付宝账单: {}", input_file.display());
-                let current_records =
-                    zhifubao_read(input_file, user).expect("read input csv file error");
-                records.extend(current_records);
-            }
-            Source::WeiXin => {
-                println!("处理微信账单: {}", input_file.display());
-                let current_records =
-                    weixin_read(input_file, user).expect("read input csv file error");
-                records.extend(current_records);
-            }
-        };
-        sort_by_time(&mut records);
-        output_check(&records);
-        output_write(output_file, &records).expect("write to new csv file error");
+
+    if let Some(zfb_bill) = zfb_bill {
+        zhifubao_handle(user, &mut records, &zfb_bill);
     }
+
+    if let Some(wx_bill) = wx_bill {
+        weixin_handle(user, &mut records, &wx_bill);
+    }
+
+    assert!(!records.is_empty(), "没有读取到任何记录");
+
+    sort_by_time(&mut records);
+    output_check(&records);
+    output_write(output_file, &records).expect("write to new csv file error");
 
     let mut input_type_count = 0;
     let mut output_type_count = 0;
@@ -108,20 +109,4 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("转账记录数: {}", transfer_type_count);
 
     Ok(())
-}
-
-fn source_selector(input_file: &Path) -> DynResult<Source> {
-    debug!("检查账单来源: {}", input_file.display());
-    let file = File::open(input_file)?;
-    let mut reader = BufReader::new(file);
-    let mut first_line = String::new();
-    reader.read_line(&mut first_line)?;
-
-    if first_line.contains("微信") {
-        Ok(Source::WeiXin)
-    } else if first_line.contains("----------") {
-        Ok(Source::ZhiFuBao)
-    } else {
-        Err("未知的账单来源".into())
-    }
 }
