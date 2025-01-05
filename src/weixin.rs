@@ -49,6 +49,7 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
         let amount = re
             .replace(amount_str, "")
             .to_string()
+            .replace(",", "")
             .parse::<f32>()
             .map_err(|e| format!("不支持的金额输入格式: {}，日期: {}", e, transaction_time))?;
         let mut account_from = record.get(6).unwrap_or("").to_string(); // 收入、支出账户和转账时的转出账户
@@ -82,7 +83,8 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
         account_to = append_user_postfix(&account_to, user);
 
         // 处理特别的分类信息
-        let (category1, category2) = filter_category(&counterparty, &remark, &transaction_direction, amount);
+        let (category1, category2) =
+            filter_category(&counterparty, &remark, &transaction_direction, amount);
 
         // 格式化日期
         let formatted_date = format_date(&transaction_time);
@@ -108,11 +110,11 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
 
 // 格式化日期字符串
 // 输入格式：year/month/day hour:minute
-// 输出格式：year 年 month 月 day 日 hour:minute:second
+// 输出格式：year年month月day日 hour:minute:00
 fn format_date(input: &str) -> String {
-    // 输入格式为 "year/month/day hour:minute"
     let parts: Vec<&str> = input.split_whitespace().collect();
     if parts.len() != 2 {
+        debug!("日期格式不正确: {}", input);
         return input.to_string(); // 返回原始字符串以防格式不正确
     }
 
@@ -121,18 +123,48 @@ fn format_date(input: &str) -> String {
 
     let date_components: Vec<&str> = date_part.split('/').collect();
     if date_components.len() != 3 {
+        debug!("日期格式不正确: {}", date_part);
         return input.to_string(); // 返回原始字符串以防格式不正确
     }
 
     let year = date_components[0];
-    let month = date_components[1];
-    let day = date_components[2];
+    let month = if date_components[1].len() == 1 {
+        format!("0{}", date_components[1])
+    } else {
+        date_components[1].to_string()
+    };
+    let day = if date_components[2].len() == 1 {
+        format!("0{}", date_components[2])
+    } else {
+        date_components[2].to_string()
+    };
 
-    // 输出格式为 "year 年 month 月 day 日 hour:minute:second"
-    format!("{} 年 {} 月 {} 日 {}", year, month, day, time_part)
+    let time_components: Vec<&str> = time_part.split(':').collect();
+    if time_components.len() != 2 {
+        debug!("时间格式不正确: {}", time_part);
+        return input.to_string(); // 返回原始字符串以防格式不正确
+    }
+
+    let hour = if time_components[0].len() == 1 {
+        format!("0{}", time_components[0])
+    } else {
+        time_components[0].to_string()
+    };
+    let minute = if time_components[1].len() == 1 {
+        format!("0{}", time_components[1])
+    } else {
+        time_components[1].to_string()
+    };
+
+    format!("{}年{}月{}日 {}:{}:00", year, month, day, hour, minute)
 }
 
-fn filter_category(counterparty: &str, remark: &str, transaction_direction: &str, amount: f32) -> (String, String) {
+fn filter_category(
+    counterparty: &str,
+    remark: &str,
+    transaction_direction: &str,
+    amount: f32,
+) -> (String, String) {
     if transaction_direction == "转账" {
         return ("".to_string(), "".to_string());
     }
@@ -143,11 +175,11 @@ fn filter_category(counterparty: &str, remark: &str, transaction_direction: &str
         "禹泉水处理设备" => {
             category1 = "账单".to_string();
             category2 = "水费".to_string();
-        },
+        }
         "北京市顺义区妇幼保健院" => {
             category1 = "医疗".to_string();
             category2 = "门诊".to_string();
-        },
+        }
         _ => {}
     }
 

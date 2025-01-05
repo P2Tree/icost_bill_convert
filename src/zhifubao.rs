@@ -25,11 +25,6 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
     let mut records = Vec::new();
     let mut headers_found = false;
 
-    let user_postfix = match user {
-        User::Yang => "-杨",
-        User::Han => "-韩",
-    };
-
     for result in rdr.records() {
         let record = result?;
 
@@ -45,7 +40,7 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
         let transaction_time = record.get(0).unwrap_or("").to_string();
         let counterparty = record.get(2).unwrap_or("").to_string();
         let mut transaction_type = record.get(5).unwrap_or("").to_string();
-        let remark = record.get(4).unwrap_or("").to_string();
+        let description = record.get(4).unwrap_or("").to_string();
         let amount = record
             .get(6)
             .unwrap()
@@ -54,6 +49,7 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
         let mut account_from = record.get(7).unwrap_or("").to_string();
         let mut account_to = String::from(""); // 只有在转账时使用，作为转入账户
         let status = record.get(8).unwrap_or("").to_string();
+        let remark = record.get(11).unwrap_or("").to_string();
 
         append_user_postfix(&account_from, user);
         append_user_postfix(&account_to, user);
@@ -64,17 +60,17 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
             continue;
         } else if status == "退款成功" {
             transaction_type = "退款".to_string();
-        } else if status == "还款成功" && remark == "信用卡还款" {
+        } else if status == "还款成功" && description == "信用卡还款" {
             transaction_type = "转账".to_string();
             account_to = "未知".to_string();
             warn!("需要手动添加还款目标卡: {:?}", record);
         }
 
         if transaction_type == "不计收支" {
-            if remark.contains("余额宝") && remark.contains("收益发放") {
+            if description.contains("余额宝") && description.contains("收益发放") {
                 transaction_type = "收入".to_string();
             }
-            if remark.contains("余额宝-自动转入") {
+            if description.contains("余额宝-自动转入") {
                 transaction_type = "转账".to_string();
                 account_to = "余额宝".to_string();
                 account_from = "支付宝零钱".to_string();
@@ -96,7 +92,11 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
             .to_string();
 
         // 处理特别的分类信息
-        let (category1, category2) = filter_category(&counterparty, &remark, &transaction_type, amount);
+        let (category1, category2) =
+            filter_category(&counterparty, &description, &transaction_type, amount);
+
+        // 拼接备注信息
+        let remark = description + ": " + &remark;
 
         // 格式化日期
         let formatted_date = format_date(&transaction_time);
@@ -121,32 +121,72 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
 }
 
 // 格式化日期字符串
-// 输入格式：year/month/day hour:minute
-// 输出格式：year 年 month 月 day 日 hour:minute:second
+// 输入格式：year-month-day hour:minute:second
+// 输出格式：year年month月day日 hour:minute:second
 fn format_date(input: &str) -> String {
     // 输入格式为 "year/month/day hour:minute"
     let parts: Vec<&str> = input.split_whitespace().collect();
     if parts.len() != 2 {
+        debug!("日期格式不正确: {}", input);
         return input.to_string(); // 返回原始字符串以防格式不正确
     }
 
     let date_part = parts[0];
     let time_part = parts[1];
 
-    let date_components: Vec<&str> = date_part.split('/').collect();
+    let date_components: Vec<&str> = date_part.split('-').collect();
     if date_components.len() != 3 {
+        debug!("日期格式不正确: {}", date_part);
         return input.to_string(); // 返回原始字符串以防格式不正确
     }
 
     let year = date_components[0];
-    let month = date_components[1];
-    let day = date_components[2];
+    let month = if date_components[1].len() == 1 {
+        format!("0{}", date_components[1])
+    } else {
+        date_components[1].to_string()
+    };
+    let day = if date_components[2].len() == 1 {
+        format!("0{}", date_components[2])
+    } else {
+        date_components[2].to_string()
+    };
 
-    // 输出格式为 "year 年 month 月 day 日 hour:minute:second"
-    format!("{} 年 {} 月 {} 日 {}", year, month, day, time_part)
+    let time_components: Vec<&str> = time_part.split(':').collect();
+    if time_components.len() != 3 {
+        debug!("时间格式不正确: {}", time_part);
+        return input.to_string(); // 返回原始字符串以防格式不正确
+    }
+
+    let hour = if time_components[0].len() == 1 {
+        format!("0{}", time_components[0])
+    } else {
+        time_components[0].to_string()
+    };
+    let minute = if time_components[1].len() == 1 {
+        format!("0{}", time_components[1])
+    } else {
+        time_components[1].to_string()
+    };
+    let second = if time_components[2].len() == 1 {
+        format!("0{}", time_components[2])
+    } else {
+        time_components[2].to_string()
+    };
+
+    // 输出格式为 "year年month月day日 hour:minute:second"
+    format!(
+        "{}年{}月{}日 {}:{}:{}",
+        year, month, day, hour, minute, second
+    )
 }
 
-fn filter_category(counterparty: &str, remark: &str, transaction_type: &str, amount: f32) -> (String, String) {
+fn filter_category(
+    counterparty: &str,
+    remark: &str,
+    transaction_type: &str,
+    amount: f32,
+) -> (String, String) {
     if transaction_type == "转账" {
         return ("".to_string(), "".to_string());
     }
@@ -161,11 +201,11 @@ fn filter_category(counterparty: &str, remark: &str, transaction_type: &str, amo
             } else {
                 category2 = "地铁".to_string();
             }
-        }, 
+        }
         "饿了么" => {
             category1 = "餐饮".to_string();
             category2 = "外卖".to_string();
-        }, 
+        }
         "兴全基金管理有限公司" => {
             if transaction_type == "收入" {
                 category1 = "资本".to_string();
@@ -174,47 +214,47 @@ fn filter_category(counterparty: &str, remark: &str, transaction_type: &str, amo
                 category1 = "资本".to_string();
                 category2 = "投资亏损".to_string();
             }
-        },
+        }
         "中国移动" => {
             if remark.contains("话费充值") {
                 category1 = "账单".to_string();
                 category2 = "电话费".to_string();
             }
-        },
+        }
         "蚂蚁森林" => {
             category1 = "意外收入".to_string();
-        },
+        }
         "Steam" => {
             category1 = "网络".to_string();
             category2 = "游戏".to_string();
-        },
+        }
         "众博康健大药房" => {
             category1 = "医疗".to_string();
             category2 = "药品".to_string();
-        },
+        }
         "北京永辉超市有限公司" => {
             category1 = "食材".to_string();
             category2 = "蔬菜".to_string();
-        },
+        }
         "北京大学口腔医院" => {
             category1 = "医疗".to_string();
             category2 = "牙齿".to_string();
-        },
+        }
         "淮南牛肉汤" => {
             category1 = "餐饮".to_string();
             category2 = "三餐".to_string();
-        },
+        }
         "汤鲜生浦项中心店" => {
             category1 = "餐饮".to_string();
             category2 = "三餐".to_string();
-        },
+        }
         _ => {}
     }
     match remark {
         "电费" => {
             category1 = "账单".to_string();
             category2 = "电费".to_string();
-        },
+        }
         "火车票" => {
             category1 = "交通".to_string();
             category2 = "火车".to_string();

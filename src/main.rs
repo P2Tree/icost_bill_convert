@@ -93,7 +93,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 println!("{}: 转账记录缺少目标账户，请手动添加", record.date);
             }
         } else {
-            println!("{}: 未知的交易类型: {}，请手动处理", record.date, record.r#type);
+            println!(
+                "{}: 未知的交易类型: {}，请手动处理",
+                record.date, record.r#type
+            );
         }
     }
     println!("支出记录数: {}", input_type_count);
