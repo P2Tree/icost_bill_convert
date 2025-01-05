@@ -40,7 +40,7 @@ pub fn check(records: &[OutputRecord]) {
         // 检查“账户1”
         let account_from = &record.account1;
         if account_from.is_empty() {
-            warn!("账户1为空");
+            warn!("账户1为空: {}", record.date);
             has_error = true;
             continue;
         }
@@ -48,7 +48,7 @@ pub fn check(records: &[OutputRecord]) {
         // 检查“账户2”
         let account_to = &record.account2;
         if transaction_type == "转账" && account_to.is_empty() {
-            warn!("转账时账户2为空");
+            warn!("转账时账户2为空: {}", record.date);
             has_error = true;
             continue;
         }

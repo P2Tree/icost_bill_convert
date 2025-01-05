@@ -55,7 +55,7 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
         append_user_postfix(&account_to, user);
 
         // 处理特别的交易类型
-        if status == "已关闭" {
+        if status == "已关闭" || status == "交易关闭" {
             debug!("跳过已关闭交易: {:?}", record);
             continue;
         } else if status == "退款成功" {
@@ -66,15 +66,27 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
             warn!("需要手动添加还款目标卡: {:?}", record);
         }
 
+        if amount == 0.0 {
+            debug!("跳过金额为0的交易: {:?}", record);
+            continue;
+        }
+
         if transaction_type == "不计收支" {
             if description.contains("余额宝") && description.contains("收益发放") {
                 transaction_type = "收入".to_string();
-            }
-            if description.contains("余额宝-自动转入") {
+            } else if description.contains("余额宝-自动转入") {
                 transaction_type = "转账".to_string();
                 account_to = "余额宝".to_string();
                 account_from = "支付宝零钱".to_string();
             }
+            if account_from.contains("亲情卡") {
+                debug!("跳过亲情卡交易: {:?}", record);
+                continue;
+            } else if account_from.contains("他人代付") {
+                debug!("跳过他人代付交易: {:?}", record);
+                continue;
+            }
+
         }
 
         account_from = append_user_postfix(&account_from, user);

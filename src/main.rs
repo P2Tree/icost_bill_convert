@@ -5,6 +5,7 @@ use std::error::Error;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 use std::path::{Path, PathBuf};
+use log::{debug, info};
 
 mod arguments;
 use arguments::{Args, Source};
@@ -61,7 +62,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut records: Vec<OutputRecord> = Vec::new();
     for input_file in input_files {
-        let input_file = Path::new(input_file);
+        let input_file = Path::new(input_file.trim());
+        info!("处理账单文件: {}", input_file.display());
         match source_selector(input_file).unwrap() {
             Source::ZhiFuBao => {
                 println!("处理支付宝账单: {}", input_file.display());
@@ -109,6 +111,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn source_selector(input_file: &Path) -> DynResult<Source> {
+    debug!("检查账单来源: {}", input_file.display());
     let file = File::open(input_file)?;
     let mut reader = BufReader::new(file);
     let mut first_line = String::new();
