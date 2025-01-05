@@ -56,22 +56,6 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
         append_user_postfix(&account_to, user);
 
         // 处理特别的交易类型
-        if status == "已关闭" || status == "交易关闭" {
-            debug!("跳过已关闭交易: {:?}", record);
-            continue;
-        } else if status == "退款成功" {
-            transaction_type = "退款".to_string();
-        } else if status == "还款成功" && description == "信用卡还款" {
-            transaction_type = "转账".to_string();
-            account_to = "未知".to_string();
-            warn!("需要手动添加还款目标卡: {:?}", record);
-        }
-
-        if amount == 0.0 {
-            debug!("跳过金额为0的交易: {:?}", record);
-            continue;
-        }
-
         if transaction_type == "不计收支" {
             if description.contains("余额宝") && description.contains("收益发放") {
                 transaction_type = "收入".to_string();
@@ -87,6 +71,24 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
                 debug!("跳过他人代付交易: {:?}", record);
                 continue;
             }
+            debug!("跳过其他不计收支交易: {:?}", record);
+            continue;
+        }
+
+        if status == "已关闭" || status == "交易关闭" {
+            debug!("跳过已关闭交易: {:?}", record);
+            continue;
+        } else if status == "退款成功" {
+            transaction_type = "退款".to_string();
+        } else if status == "还款成功" && description == "信用卡还款" {
+            transaction_type = "转账".to_string();
+            account_to = "未知".to_string();
+            warn!("需要手动添加还款目标卡: {:?}", record);
+        }
+
+        if amount == 0.0 {
+            debug!("跳过金额为0的交易: {:?}", record);
+            continue;
         }
 
         account_from = append_user_postfix(&account_from, user);
@@ -136,10 +138,9 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
 // 输入格式：year-month-day hour:minute:second
 // 输出格式：year年month月day日 hour:minute:second
 fn format_date(input: &str) -> String {
-    // 输入格式为 "year/month/day hour:minute"
     let parts: Vec<&str> = input.split_whitespace().collect();
     if parts.len() != 2 {
-        debug!("日期格式不正确: {}", input);
+        debug!("日期时间格式不正确: {}", input);
         return input.to_string(); // 返回原始字符串以防格式不正确
     }
 
@@ -153,16 +154,8 @@ fn format_date(input: &str) -> String {
     }
 
     let year = date_components[0];
-    let month = if date_components[1].len() == 1 {
-        format!("0{}", date_components[1])
-    } else {
-        date_components[1].to_string()
-    };
-    let day = if date_components[2].len() == 1 {
-        format!("0{}", date_components[2])
-    } else {
-        date_components[2].to_string()
-    };
+    let month = date_components[1].to_string();
+    let day = date_components[2].to_string();
 
     let time_components: Vec<&str> = time_part.split(':').collect();
     if time_components.len() != 3 {
@@ -170,21 +163,9 @@ fn format_date(input: &str) -> String {
         return input.to_string(); // 返回原始字符串以防格式不正确
     }
 
-    let hour = if time_components[0].len() == 1 {
-        format!("0{}", time_components[0])
-    } else {
-        time_components[0].to_string()
-    };
-    let minute = if time_components[1].len() == 1 {
-        format!("0{}", time_components[1])
-    } else {
-        time_components[1].to_string()
-    };
-    let second = if time_components[2].len() == 1 {
-        format!("0{}", time_components[2])
-    } else {
-        time_components[2].to_string()
-    };
+    let hour = time_components[0].to_string();
+    let minute = time_components[1].to_string();
+    let second = time_components[2].to_string();
 
     // 输出格式为 "year年month月day日 hour:minute:second"
     format!(

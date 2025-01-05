@@ -110,54 +110,42 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
 }
 
 // 格式化日期字符串
-// 输入格式：year/month/day hour:minute
-// 输出格式：year年month月day日 hour:minute:00
+// 输入格式：year-month-day hour:minute:second
+// 输出格式：year年month月day日 hour:minute:second
 fn format_date(input: &str) -> String {
     let parts: Vec<&str> = input.split_whitespace().collect();
     if parts.len() != 2 {
-        debug!("日期格式不正确: {}", input);
+        debug!("日期时间格式不正确: {}", input);
         return input.to_string(); // 返回原始字符串以防格式不正确
     }
 
     let date_part = parts[0];
     let time_part = parts[1];
 
-    let date_components: Vec<&str> = date_part.split('/').collect();
+    let date_components: Vec<&str> = date_part.split('-').collect();
     if date_components.len() != 3 {
         debug!("日期格式不正确: {}", date_part);
         return input.to_string(); // 返回原始字符串以防格式不正确
     }
 
     let year = date_components[0];
-    let month = if date_components[1].len() == 1 {
-        format!("0{}", date_components[1])
-    } else {
-        date_components[1].to_string()
-    };
-    let day = if date_components[2].len() == 1 {
-        format!("0{}", date_components[2])
-    } else {
-        date_components[2].to_string()
-    };
+    let month = date_components[1].to_string();
+    let day = date_components[2].to_string();
 
     let time_components: Vec<&str> = time_part.split(':').collect();
-    if time_components.len() != 2 {
+    if time_components.len() != 3 {
         debug!("时间格式不正确: {}", time_part);
         return input.to_string(); // 返回原始字符串以防格式不正确
     }
 
-    let hour = if time_components[0].len() == 1 {
-        format!("0{}", time_components[0])
-    } else {
-        time_components[0].to_string()
-    };
-    let minute = if time_components[1].len() == 1 {
-        format!("0{}", time_components[1])
-    } else {
-        time_components[1].to_string()
-    };
+    let hour = time_components[0].to_string();
+    let minute = time_components[1].to_string();
+    let second = time_components[2].to_string();
 
-    format!("{}年{}月{}日 {}:{}:00", year, month, day, hour, minute)
+    format!(
+        "{}年{}月{}日 {}:{}:{}",
+        year, month, day, hour, minute, second
+    )
 }
 
 fn filter_category(
