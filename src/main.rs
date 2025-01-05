@@ -2,6 +2,8 @@ use clap::{self, Parser};
 use serde::Serialize;
 use std::env;
 use std::error::Error;
+use std::fs::File;
+use std::io::{self, BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
 mod arguments;
@@ -107,10 +109,16 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn source_selector(input_file: &Path) -> DynResult<Source> {
-    let file_name = input_file.file_name().unwrap().to_str().unwrap();
-    match file_name {
-        "zhifubao.csv" => Ok(Source::ZhiFuBao),
-        "weixin.csv" => Ok(Source::WeiXin),
-        _ => Err("Invalid source".into()),
+    let file = File::open(input_file)?;
+    let mut reader = BufReader::new(file);
+    let mut first_line = String::new();
+    reader.read_line(&mut first_line)?;
+
+    if first_line.contains("微信") {
+        Ok(Source::WeiXin)
+    } else if first_line.contains("----------") {
+        Ok(Source::ZhiFuBao)
+    } else {
+        Err("未知的账单来源".into())
     }
 }
