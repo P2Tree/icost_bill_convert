@@ -1,5 +1,4 @@
 use clap::{self, Parser};
-use serde::Serialize;
 use std::error::Error;
 use std::path::PathBuf;
 
@@ -13,38 +12,9 @@ mod weixin;
 use weixin::handle_bill as weixin_handle;
 
 mod output;
-use output::check as output_check;
-use output::sort_by_time;
-use output::write_output_file as output_write;
+use output::OutputRecord;
 
 type DynResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
-
-// record structure for output, use Serialize trait to support CSV serialization
-#[derive(Serialize, Debug)]
-struct OutputRecord {
-    #[serde(rename = "日期")]
-    date: String,
-    #[serde(rename = "类型")]
-    r#type: String,
-    #[serde(rename = "金额")]
-    amount: f32,
-    #[serde(rename = "一级分类")]
-    category1: String,
-    #[serde(rename = "二级分类")]
-    category2: String,
-    #[serde(rename = "账户1")]
-    account1: String,
-    #[serde(rename = "账户2")]
-    account2: String,
-    #[serde(rename = "备注")]
-    remark: String,
-    #[serde(rename = "货币")]
-    currency: String,
-    #[serde(rename = "标签")]
-    tag: String,
-    #[serde(rename = "来源")]
-    source: String,
-}
 
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
@@ -77,9 +47,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     assert!(!records.is_empty(), "没有读取到任何记录");
 
     // combine all bills
-    sort_by_time(&mut records);
-    output_check(&records);
-    output_write(output_file, &records).expect("write to new csv file error");
+    OutputRecord::sort_by_time(&mut records);
+    OutputRecord::check(&records);
+    OutputRecord::write(output_file, &records).expect("write to new csv file error");
 
     // summary records
     let mut input_type_count = 0;
