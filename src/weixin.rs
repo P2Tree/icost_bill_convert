@@ -39,6 +39,7 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
             }
         }
 
+        let source = "微信";
         let transaction_time = record.get(0).unwrap_or("").to_string();
         let transaction_type = record.get(1).unwrap_or("").to_string();
         let counterparty = record.get(2).unwrap_or("").to_string();
@@ -52,7 +53,12 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
             .to_string()
             .replace(",", "")
             .parse::<f32>()
-            .map_err(|e| format!("不支持的金额输入格式: {}，日期: {}", e, transaction_time))?;
+            .map_err(|e| {
+                format!(
+                    "{} {}: 不支持的金额输入格式: {}",
+                    transaction_time, source, e
+                )
+            })?;
         let mut account_from = record.get(6).unwrap_or("").to_string(); // 收入、支出账户和转账时的转出账户
         let mut account_to = String::from(""); // 只有在转账时使用，作为转入账户
         let status = record.get(7).unwrap_or("").to_string();
@@ -62,9 +68,13 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
         };
 
         // 跳过不关心的交易类型
-        // if transaction_type == "不计收支" {
-        //     continue;
-        // }
+        if status == "已全额退款" {
+            debug!(
+                "{} {}: 跳过全额退款交易: {:?}",
+                transaction_time, source, record
+            );
+            continue;
+        }
 
         // 处理特别的交易类型
         if transaction_direction == "/" && transaction_type.contains("转入零钱通") {
@@ -77,7 +87,6 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
         if status == "已存入零钱" && account_from == "/" {
             transaction_direction = "收入".to_string();
             account_from = "零钱".to_string();
-            remark = counterparty.clone();
         }
 
         account_from = append_user_postfix(&account_from, user);
@@ -85,7 +94,10 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
 
         // 处理特别的分类信息
         let (category1, category2) =
-            filter_category(&counterparty, &remark, &transaction_direction, amount);
+            filter_category(&counterparty, &remark, &transaction_direction);
+
+        // 拼接备注信息
+        let remark = remark + ": " + &counterparty;
 
         // 格式化日期
         let formatted_date = format_date(&transaction_time);
@@ -101,6 +113,7 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
             remark,
             currency,
             tag: String::new(), // 暂时留空
+            source: String::from(source),
         };
 
         records.push(output_record);
@@ -114,29 +127,20 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
 // 输出格式：year年month月day日 hour:minute:second
 fn format_date(input: &str) -> String {
     let parts: Vec<&str> = input.split_whitespace().collect();
-    if parts.len() != 2 {
-        debug!("日期时间格式不正确: {}", input);
-        return input.to_string(); // 返回原始字符串以防格式不正确
-    }
+    assert!(parts.len() == 2, "日期时间格式不正确: {}", input,);
 
     let date_part = parts[0];
     let time_part = parts[1];
 
     let date_components: Vec<&str> = date_part.split('-').collect();
-    if date_components.len() != 3 {
-        debug!("日期格式不正确: {}", date_part);
-        return input.to_string(); // 返回原始字符串以防格式不正确
-    }
+    assert!(date_components.len() == 3, "日期格式不正确: {}", date_part,);
 
     let year = date_components[0];
     let month = date_components[1].to_string();
     let day = date_components[2].to_string();
 
     let time_components: Vec<&str> = time_part.split(':').collect();
-    if time_components.len() != 3 {
-        debug!("时间格式不正确: {}", time_part);
-        return input.to_string(); // 返回原始字符串以防格式不正确
-    }
+    assert!(time_components.len() == 3, "时间格式不正确: {}", time_part,);
 
     let hour = time_components[0].to_string();
     let minute = time_components[1].to_string();
@@ -152,7 +156,6 @@ fn filter_category(
     counterparty: &str,
     remark: &str,
     transaction_direction: &str,
-    amount: f32,
 ) -> (String, String) {
     if transaction_direction == "转账" {
         return ("".to_string(), "".to_string());
@@ -160,16 +163,26 @@ fn filter_category(
 
     let mut category1 = "未知".to_string();
     let mut category2 = "".to_string();
-    match counterparty {
-        "禹泉水处理设备" => {
-            category1 = "账单".to_string();
-            category2 = "水费".to_string();
-        }
-        "北京市顺义区妇幼保健院" => {
-            category1 = "医疗".to_string();
-            category2 = "门诊".to_string();
-        }
-        _ => {}
+    if counterparty.contains("禹泉水处理设备") {
+        category1 = "账单".to_string();
+        category2 = "水费".to_string();
+    } else if counterparty.contains("北京市顺义区妇幼保健院") {
+        category1 = "医疗".to_string();
+        category2 = "门诊".to_string();
+    } else if counterparty.contains("易寄件") {
+        category1 = "杂项".to_string();
+        category2 = "快递费".to_string();
+    } else if counterparty.contains("顺义鑫绿都生活超市后沙峪店") {
+        category1 = "食材".to_string();
+        category2 = "蔬菜".to_string();
+    } else if counterparty.contains("永辉超市") {
+        category1 = "食材".to_string();
+        category2 = "蔬菜".to_string();
+    }
+
+    if remark.contains("霸王茶姬") {
+        category1 = "餐饮".to_string();
+        category2 = "饮料".to_string();
     }
 
     (category1, category2)

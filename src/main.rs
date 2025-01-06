@@ -48,6 +48,8 @@ struct OutputRecord {
     currency: String,
     #[serde(rename = "标签")]
     tag: String,
+    #[serde(rename = "来源")]
+    source: String,
 }
 
 // 主函数：处理命令行参数并协调整个程序的执行流程
@@ -95,15 +97,19 @@ fn main() -> Result<(), Box<dyn Error>> {
         } else if record.r#type == "转账" {
             transfer_type_count += 1;
             if record.account2 == "未知" {
-                println!("{}: 转账记录缺少目标账户，请手动添加", record.date);
+                println!(
+                    "{} {}: 转账记录缺少目标账户，请手动添加",
+                    record.date, record.source
+                );
             }
         } else {
             println!(
-                "{}: 未知的交易类型: {}，请手动处理",
-                record.date, record.r#type
+                "{} {}: 未知的交易类型: {}，请手动处理",
+                record.date, record.source, record.r#type
             );
         }
     }
+    println!("汇总：");
     println!("支出记录数: {}", input_type_count);
     println!("收入记录数: {}", output_type_count);
     println!("转账记录数: {}", transfer_type_count);

@@ -38,15 +38,17 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
             }
         }
 
+        let source = "支付宝";
         let transaction_time = record.get(0).unwrap_or("").to_string();
         let counterparty = record.get(2).unwrap_or("").to_string();
         let mut transaction_type = record.get(5).unwrap_or("").to_string();
         let description = record.get(4).unwrap_or("").to_string();
-        let amount = record
-            .get(6)
-            .unwrap()
-            .parse::<f32>()
-            .expect("不支持的金额输入格式");
+        let amount = record.get(6).unwrap().parse::<f32>().map_err(|e| {
+            format!(
+                "{} {}: 不支持的金额输入格式: {}",
+                transaction_time, source, e
+            )
+        })?;
         let mut account_from = record.get(7).unwrap_or("").to_string();
         let mut account_to = String::from(""); // 只有在转账时使用，作为转入账户
         let status = record.get(8).unwrap_or("").to_string();
@@ -65,29 +67,47 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
                 account_from = "支付宝零钱".to_string();
             }
             if account_from.contains("亲情卡") {
-                debug!("跳过亲情卡交易: {:?}", record);
+                debug!(
+                    "{} {}: 跳过亲情卡交易: {:?}",
+                    transaction_time, source, record
+                );
                 continue;
             } else if account_from.contains("他人代付") {
-                debug!("跳过他人代付交易: {:?}", record);
+                debug!(
+                    "{} {}: 跳过他人代付交易: {:?}",
+                    transaction_time, source, record
+                );
                 continue;
             }
-            debug!("跳过其他不计收支交易: {:?}", record);
+            debug!(
+                "{} {}: 跳过其他不计收支交易: {:?}",
+                transaction_time, source, record
+            );
             continue;
         }
 
         if status == "已关闭" || status == "交易关闭" {
-            debug!("跳过已关闭交易: {:?}", record);
+            debug!(
+                "{} {}: 跳过已关闭交易: {:?}",
+                transaction_time, source, record
+            );
             continue;
         } else if status == "退款成功" {
             transaction_type = "退款".to_string();
         } else if status == "还款成功" && description == "信用卡还款" {
             transaction_type = "转账".to_string();
             account_to = "未知".to_string();
-            warn!("需要手动添加还款目标卡: {:?}", record);
+            warn!(
+                "{} {}: 需要手动添加还款目标卡: {:?}",
+                transaction_time, source, record
+            );
         }
 
         if amount == 0.0 {
-            debug!("跳过金额为0的交易: {:?}", record);
+            debug!(
+                "{} {}: 跳过金额为0的交易: {:?}",
+                transaction_time, source, record
+            );
             continue;
         }
 
@@ -126,6 +146,7 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
             remark,
             currency: "CNY".to_string(), // 默认值
             tag: String::new(),          // 暂时留空
+            source: String::from(source),
         };
 
         records.push(output_record);
@@ -139,29 +160,20 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
 // 输出格式：year年month月day日 hour:minute:second
 fn format_date(input: &str) -> String {
     let parts: Vec<&str> = input.split_whitespace().collect();
-    if parts.len() != 2 {
-        debug!("日期时间格式不正确: {}", input);
-        return input.to_string(); // 返回原始字符串以防格式不正确
-    }
+    assert!(parts.len() == 2, "日期时间格式不正确: {}", input);
 
     let date_part = parts[0];
     let time_part = parts[1];
 
     let date_components: Vec<&str> = date_part.split('-').collect();
-    if date_components.len() != 3 {
-        debug!("日期格式不正确: {}", date_part);
-        return input.to_string(); // 返回原始字符串以防格式不正确
-    }
+    assert!(date_components.len() == 3, "日期格式不正确: {}", date_part);
 
     let year = date_components[0];
     let month = date_components[1].to_string();
     let day = date_components[2].to_string();
 
     let time_components: Vec<&str> = time_part.split(':').collect();
-    if time_components.len() != 3 {
-        debug!("时间格式不正确: {}", time_part);
-        return input.to_string(); // 返回原始字符串以防格式不正确
-    }
+    assert!(time_components.len() == 3, "时间格式不正确: {}", time_part);
 
     let hour = time_components[0].to_string();
     let minute = time_components[1].to_string();
@@ -241,8 +253,13 @@ fn filter_category(
             category1 = "餐饮".to_string();
             category2 = "三餐".to_string();
         }
+        "滴滴出行（北京）网络平台技术有限公司" => {
+            category1 = "交通".to_string();
+            category2 = "打车".to_string();
+        }
         _ => {}
     }
+
     match remark {
         "电费" => {
             category1 = "账单".to_string();
