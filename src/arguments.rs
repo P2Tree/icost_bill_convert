@@ -1,6 +1,5 @@
 use clap::{self, Parser};
-use std::error::Error;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::DynResult;
 
@@ -20,24 +19,10 @@ pub struct Args {
     pub user: User,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Source {
-    ZhiFuBao,
-    WeiXin,
-}
-
 #[derive(Debug, Clone)]
 pub enum User {
     Yang,
     Han,
-}
-
-pub fn parse_source(source: &str) -> DynResult<Source> {
-    match source {
-        "zhifubao" => Ok(Source::ZhiFuBao),
-        "weixin" => Ok(Source::WeiXin),
-        _ => Err("Invalid source".into()),
-    }
 }
 
 pub fn parse_user(user: &str) -> DynResult<User> {

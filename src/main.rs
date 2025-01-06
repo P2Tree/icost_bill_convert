@@ -1,22 +1,16 @@
 use clap::{self, Parser};
-use log::{debug, info};
 use serde::Serialize;
-use std::env;
 use std::error::Error;
-use std::fs::File;
-use std::io::{self, BufRead, BufReader};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 mod arguments;
-use arguments::{Args, Source};
+use arguments::Args;
 
 mod zhifubao;
 use zhifubao::handle_bill as zhifubao_handle;
-use zhifubao::read_input_file as zhifubao_read;
 
 mod weixin;
 use weixin::handle_bill as weixin_handle;
-use weixin::read_input_file as weixin_read;
 
 mod output;
 use output::check as output_check;
@@ -25,7 +19,7 @@ use output::write_output_file as output_write;
 
 type DynResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
-// 定义输出记录的结构体，使用 Serialize 特征以支持 CSV 序列化
+// record structure for output, use Serialize trait to support CSV serialization
 #[derive(Serialize, Debug)]
 struct OutputRecord {
     #[serde(rename = "日期")]
@@ -52,14 +46,12 @@ struct OutputRecord {
     source: String,
 }
 
-// 主函数：处理命令行参数并协调整个程序的执行流程
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
-    // 获取命令行参数
     let args = Args::parse();
 
-    // 设置输入和输出文件路径
+    // get input bill path
     let zfb_bill = args.zhifubao_bill;
     let wx_bill = args.weixin_bill;
     if zfb_bill.is_none() && wx_bill.is_none() {
@@ -67,9 +59,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
+    // set output bill path
     let output_file = &args.output.unwrap_or(PathBuf::from("output.csv"));
     let user = &args.user;
 
+    // save records
     let mut records: Vec<OutputRecord> = Vec::new();
 
     if let Some(zfb_bill) = zfb_bill {
@@ -82,10 +76,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     assert!(!records.is_empty(), "没有读取到任何记录");
 
+    // combine all bills
     sort_by_time(&mut records);
     output_check(&records);
     output_write(output_file, &records).expect("write to new csv file error");
 
+    // summary records
     let mut input_type_count = 0;
     let mut output_type_count = 0;
     let mut transfer_type_count = 0;

@@ -1,9 +1,9 @@
 use crate::{DynResult, OutputRecord};
 use csv::WriterBuilder;
 use log::{error, warn};
-use std::{path::Path, process::Output};
+use std::path::Path;
 
-pub fn sort_by_time(records: &mut Vec<OutputRecord>) {
+pub fn sort_by_time(records: &mut [OutputRecord]) {
     records.sort_by(|a, b| b.date.cmp(&a.date));
 }
 
@@ -64,12 +64,11 @@ pub fn check(records: &[OutputRecord]) {
     }
 
     if has_error {
-        error!("检查失败，请检查程序逻辑");
+        error!("格式检查未通过，请检查程序逻辑");
         std::process::exit(1);
     }
 }
 
-// 将处理后的记录写入输出文件
 pub fn write_output_file(output_file: &Path, records: &Vec<OutputRecord>) -> DynResult<()> {
     println!("写入输出文件: {}", output_file.display());
     let mut wtr = WriterBuilder::new().from_path(output_file)?;

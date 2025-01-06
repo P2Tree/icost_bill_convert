@@ -1,27 +1,24 @@
-use csv::{ReaderBuilder, WriterBuilder};
-use encoding_rs::{Encoding, GBK, UTF_8};
+use csv::ReaderBuilder;
+use encoding_rs::UTF_8;
 use encoding_rs_io::DecodeReaderBytesBuilder;
-use log::{debug, error, info, warn};
+use log::{debug, info};
 use regex::Regex;
 use std::path::{Path, PathBuf};
 
 use crate::arguments::{self, User};
-use crate::output::{check as output_check, sort_by_time, write_output_file as output_write};
 use crate::{DynResult, OutputRecord};
 
-// 读取输入文件并处理数据
 pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRecord>> {
-    // 打开文件
     let file = std::fs::File::open(input_file)?;
     let decoder = DecodeReaderBytesBuilder::new()
         .encoding(Some(UTF_8))
         .build(file);
 
-    // 创建更灵活的 CSV 读取器配置
+    // create csv reader
     let mut rdr = ReaderBuilder::new()
         .has_headers(true)
-        .flexible(true) // 允许不同的字段数
-        .trim(csv::Trim::All) // 修剪所有字段的空白
+        .flexible(true)
+        .trim(csv::Trim::All)
         .from_reader(decoder);
 
     let mut records = Vec::new();
@@ -30,15 +27,17 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
     for result in rdr.records() {
         let record = result?;
 
+        // find the first normal line in csv records
         if !headers_found {
             if record.get(0).map_or(false, |s| s.contains("交易时间")) {
                 headers_found = true;
-                continue; // 跳过标题行
+                continue;
             } else {
-                continue; // 继续查找标题行
+                continue;
             }
         }
 
+        // get items
         let source = "微信";
         let transaction_time = record.get(0).unwrap_or("").to_string();
         let transaction_type = record.get(1).unwrap_or("").to_string();
@@ -59,15 +58,17 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
                     transaction_time, source, e
                 )
             })?;
-        let mut account_from = record.get(6).unwrap_or("").to_string(); // 收入、支出账户和转账时的转出账户
-        let mut account_to = String::from(""); // 只有在转账时使用，作为转入账户
+        // used for income/outcome account and the source account of transfer
+        let mut account_from = record.get(6).unwrap_or("").to_string();
+        // only used for transfer item, as the target account
+        let mut account_to = String::from("");
         let status = record.get(7).unwrap_or("").to_string();
         let currency = match amount_str.chars().next() {
             Some('¥') => "CNY".to_string(),
             _ => "".to_string(),
         };
 
-        // 跳过不关心的交易类型
+        // ignore some items
         if status == "已全额退款" {
             debug!(
                 "{} {}: 跳过全额退款交易: {:?}",
@@ -76,7 +77,7 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
             continue;
         }
 
-        // 处理特别的交易类型
+        // handle special items
         if transaction_direction == "/" && transaction_type.contains("转入零钱通") {
             transaction_direction = "转账".to_string();
             account_from = "零钱".to_string();
@@ -89,17 +90,18 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
             account_from = "零钱".to_string();
         }
 
+        // append user to account
         account_from = append_user_postfix(&account_from, user);
         account_to = append_user_postfix(&account_to, user);
 
-        // 处理特别的分类信息
+        // category setting
         let (category1, category2) =
             filter_category(&counterparty, &remark, &transaction_direction);
 
-        // 拼接备注信息
+        // prepare remarks
         let remark = remark + ": " + &counterparty;
 
-        // 格式化日期
+        // format date-time
         let formatted_date = format_date(&transaction_time);
 
         let output_record = OutputRecord {
@@ -112,7 +114,7 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
             account2: account_to,
             remark,
             currency,
-            tag: String::new(), // 暂时留空
+            tag: String::new(),
             source: String::from(source),
         };
 
@@ -122,9 +124,9 @@ pub fn read_input_file(input_file: &Path, user: &User) -> DynResult<Vec<OutputRe
     Ok(records)
 }
 
-// 格式化日期字符串
-// 输入格式：year-month-day hour:minute:second
-// 输出格式：year年month月day日 hour:minute:second
+// format date-time string
+// input：year-month-day hour:minute:second
+// output：year年month月day日 hour:minute:second
 fn format_date(input: &str) -> String {
     let parts: Vec<&str> = input.split_whitespace().collect();
     assert!(parts.len() == 2, "日期时间格式不正确: {}", input,);
@@ -172,10 +174,9 @@ fn filter_category(
     } else if counterparty.contains("易寄件") {
         category1 = "杂项".to_string();
         category2 = "快递费".to_string();
-    } else if counterparty.contains("顺义鑫绿都生活超市后沙峪店") {
-        category1 = "食材".to_string();
-        category2 = "蔬菜".to_string();
-    } else if counterparty.contains("永辉超市") {
+    } else if counterparty.contains("顺义鑫绿都生活超市后沙峪店")
+        || counterparty.contains("永辉超市")
+    {
         category1 = "食材".to_string();
         category2 = "蔬菜".to_string();
     }
